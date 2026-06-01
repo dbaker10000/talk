@@ -64,6 +64,7 @@ def create():
                 )
             )
 
+        _save_reference_uploads(talk, request.files.getlist("reference_files"))
         db.session.commit()
         flash("Talk created.", "success")
         return redirect(url_for("talks.editor", talk_id=talk.id))
@@ -85,27 +86,7 @@ def settings(talk_id):
         talk.base_prompt = request.form.get("base_prompt", "").strip()
         talk.global_revision_prompt = request.form.get("global_revision_prompt", "").strip()
 
-        uploads = request.files.getlist("reference_files")
-        for upload in uploads:
-            if not upload or not upload.filename:
-                continue
-            if not is_allowed_reference_file(upload.filename):
-                flash(f"Skipped unsupported file: {upload.filename}", "warning")
-                continue
-
-            stored_filename = unique_upload_name(upload.filename)
-            file_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_filename
-            upload.save(file_path)
-
-            ref = ReferenceFile(
-                talk=talk,
-                original_filename=upload.filename,
-                stored_filename=stored_filename,
-                file_path=str(file_path),
-                mime_type=upload.mimetype or mimetypes.guess_type(upload.filename)[0],
-                file_size=file_path.stat().st_size,
-            )
-            db.session.add(ref)
+        _save_reference_uploads(talk, request.files.getlist("reference_files"))
 
         db.session.commit()
         flash("Talk settings updated.", "success")
@@ -224,6 +205,29 @@ def _apply_section_form_data(talk: Talk, form) -> None:
         section.sort_order = int(form.get(f"{prefix}-sort-order", section.sort_order) or 0)
 
     _normalize_sort_order(talk)
+
+
+def _save_reference_uploads(talk: Talk, uploads) -> None:
+    for upload in uploads:
+        if not upload or not upload.filename:
+            continue
+        if not is_allowed_reference_file(upload.filename):
+            flash(f"Skipped unsupported file: {upload.filename}", "warning")
+            continue
+
+        stored_filename = unique_upload_name(upload.filename)
+        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_filename
+        upload.save(file_path)
+
+        ref = ReferenceFile(
+            talk=talk,
+            original_filename=upload.filename,
+            stored_filename=stored_filename,
+            file_path=str(file_path),
+            mime_type=upload.mimetype or mimetypes.guess_type(upload.filename)[0],
+            file_size=file_path.stat().st_size,
+        )
+        db.session.add(ref)
 
 
 def _changed_prompt_section_ids(talk: Talk, form) -> list[int]:

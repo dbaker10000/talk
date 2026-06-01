@@ -8,7 +8,7 @@
       <h1>Create talk</h1>
     </div>
   </div>
-  <form method="post" class="stack-form">
+  <form method="post" enctype="multipart/form-data" class="stack-form">
     <label><span>Title</span><input type="text" name="title" required></label>
     <label><span>Theme</span><input type="text" name="theme" required></label>
     <label><span>Duration (minutes)</span><input type="number" step="0.25" min="1" name="duration_minutes" value="10" required></label>
@@ -16,6 +16,10 @@
     <label>
       <span>Base prompt</span>
       <textarea name="base_prompt" rows="8" placeholder="Describe the goal, desired tone, structure, and constraints."></textarea>
+    </label>
+    <label>
+      <span>Reference files</span>
+      <input type="file" name="reference_files" multiple>
     </label>
     <button class="button button-primary" type="submit">Create talk</button>
   </form>

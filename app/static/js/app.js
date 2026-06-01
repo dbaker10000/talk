@@ -106,6 +106,17 @@ function setLoadingState(action) {
   });
 }
 
+function clearLoadingState() {
+  const overlay = document.getElementById("loading-overlay");
+  if (overlay) {
+    overlay.hidden = true;
+  }
+  document.body.classList.remove("is-loading");
+  document.querySelectorAll("button, input, textarea, select").forEach((element) => {
+    element.disabled = false;
+  });
+}
+
 function moveSection(button, direction) {
   const card = button.closest("[data-section-card]");
   const container = card.parentElement;
@@ -153,6 +164,7 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  clearLoadingState();
   renumberSortOrder();
   updateEditorMetrics();
   syncPromptChangedState();
