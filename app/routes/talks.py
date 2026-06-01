@@ -43,6 +43,7 @@ def create():
             duration_minutes=duration_minutes,
             words_per_minute=words_per_minute,
             base_prompt=base_prompt,
+            global_revision_prompt="",
             owner=current_user,
         )
         db.session.add(talk)
@@ -82,6 +83,7 @@ def settings(talk_id):
         talk.duration_minutes = float(request.form.get("duration_minutes", talk.duration_minutes) or 0)
         talk.words_per_minute = int(request.form.get("words_per_minute", talk.words_per_minute) or 0)
         talk.base_prompt = request.form.get("base_prompt", "").strip()
+        talk.global_revision_prompt = request.form.get("global_revision_prompt", "").strip()
 
         uploads = request.files.getlist("reference_files")
         for upload in uploads:
@@ -152,6 +154,9 @@ def editor(talk_id):
             return redirect(url_for("talks.editor", talk_id=talk.id))
 
         _apply_section_form_data(talk, request.form)
+        talk.global_revision_prompt = request.form.get(
+            "global_revision_prompt", talk.global_revision_prompt or ""
+        ).strip()
 
         if action == "save":
             db.session.commit()
@@ -232,6 +237,12 @@ def _changed_prompt_section_ids(talk: Talk, form) -> list[int]:
     return changed_ids
 
 
+def _global_revision_prompt_changed(talk: Talk, form) -> bool:
+    original_prompt = form.get("original_global_revision_prompt", "").strip()
+    current_prompt = (talk.global_revision_prompt or "").strip()
+    return current_prompt != original_prompt
+
+
 def _normalize_sort_order(talk: Talk) -> None:
     for index, section in enumerate(sorted(talk.sections, key=lambda item: item.sort_order)):
         section.sort_order = index
@@ -259,17 +270,20 @@ def _generate_sections(talk: Talk):
         )
     db.session.commit()
     flash("Sections generated with AI.", "success")
+    if structured.notes:
+        flash(structured.notes, "info")
     return redirect(url_for("talks.editor", talk_id=talk.id))
 
 
 def _revise_talk(talk: Talk):
     changed_prompt_section_ids = _changed_prompt_section_ids(talk, request.form)
+    global_prompt_changed = _global_revision_prompt_changed(talk, request.form)
     force_rerun = request.form.get("force_rerun") == "1"
 
-    if not changed_prompt_section_ids and not force_rerun:
+    if not changed_prompt_section_ids and not global_prompt_changed and not force_rerun:
         db.session.rollback()
         flash(
-            "No section prompts changed. Confirm rerun in the editor if you want to send the same instructions again.",
+            "No talk-level or section-level revision prompts changed. Confirm rerun in the editor if you want to send the same instructions again.",
             "warning",
         )
         return redirect(url_for("talks.editor", talk_id=talk.id))
@@ -278,6 +292,7 @@ def _revise_talk(talk: Talk):
         structured = openai_service.revise_talk(
             talk,
             changed_prompt_section_ids=changed_prompt_section_ids,
+            global_prompt_changed=global_prompt_changed,
             force_rerun=force_rerun,
         )
     except AIServiceError as exc:
@@ -308,11 +323,16 @@ def _revise_talk(talk: Talk):
 
     db.session.commit()
     flash("Talk updated with AI.", "success")
+    if structured.notes:
+        flash(structured.notes, "info")
     return redirect(url_for("talks.editor", talk_id=talk.id))
 
 
 def _revise_section(talk: Talk, section_id: int):
     section = TalkSection.query.filter_by(id=section_id, talk_id=talk.id).first_or_404()
+    if section.is_frozen:
+        flash("Unfreeze this section before requesting an AI section update.", "warning")
+        return redirect(url_for("talks.editor", talk_id=talk.id))
     try:
         structured = openai_service.revise_single_section(talk, section)
     except AIServiceError as exc:
@@ -329,4 +349,6 @@ def _revise_section(talk: Talk, section_id: int):
 
     db.session.commit()
     flash(f"Section '{section.label}' updated with AI.", "success")
+    if structured.notes:
+        flash(structured.notes, "info")
     return redirect(url_for("talks.editor", talk_id=talk.id))

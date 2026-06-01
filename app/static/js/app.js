@@ -52,11 +52,38 @@ function renumberSortOrder() {
 
 function hasPromptChanges() {
   const promptAreas = document.querySelectorAll("[data-section-prompt]");
-  return Array.from(promptAreas).some((area) => {
+  const sectionChanged = Array.from(promptAreas).some((area) => {
     const card = area.closest("[data-section-card]");
     const original = card.querySelector("[data-original-prompt]");
     return (area.value || "").trim() !== (original.value || "").trim();
   });
+  if (sectionChanged) return true;
+
+  const globalPrompt = document.getElementById("global-revision-prompt");
+  const originalGlobalPrompt = document.getElementById("original-global-revision-prompt");
+  return (
+    globalPrompt &&
+    originalGlobalPrompt &&
+    (globalPrompt.value || "").trim() !== (originalGlobalPrompt.value || "").trim()
+  );
+}
+
+function syncPromptChangedState() {
+  document.querySelectorAll("[data-section-prompt]").forEach((area) => {
+    const card = area.closest("[data-section-card]");
+    const original = card.querySelector("[data-original-prompt]");
+    const changed = (area.value || "").trim() !== (original.value || "").trim();
+    card.classList.toggle("section-card-changed", changed);
+  });
+
+  const globalPrompt = document.getElementById("global-revision-prompt");
+  const originalGlobalPrompt = document.getElementById("original-global-revision-prompt");
+  const panel = document.querySelector(".global-prompt-panel");
+  if (globalPrompt && originalGlobalPrompt && panel) {
+    const changed =
+      (globalPrompt.value || "").trim() !== (originalGlobalPrompt.value || "").trim();
+    panel.classList.toggle("prompt-panel-changed", changed);
+  }
 }
 
 function setLoadingState(action) {
@@ -100,7 +127,7 @@ document.addEventListener("submit", (event) => {
 
   if (action === "ai_update" && !hasPromptChanges()) {
     const confirmed = window.confirm(
-      "No section prompts changed. Do you want to rerun the same AI update anyway?"
+      "No talk-level or section-level revision prompts changed. Do you want to rerun the same AI update anyway?"
     );
     if (!confirmed) {
       event.preventDefault();
@@ -116,13 +143,17 @@ document.addEventListener("submit", (event) => {
 
 document.addEventListener("input", (event) => {
   if (
-    event.target.matches("[data-section-text], [data-target-time-input], [data-section-prompt]")
+    event.target.matches(
+      "[data-section-text], [data-target-time-input], [data-section-prompt], [data-global-revision-prompt]"
+    )
   ) {
     updateEditorMetrics();
+    syncPromptChangedState();
   }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
   renumberSortOrder();
   updateEditorMetrics();
+  syncPromptChangedState();
 });

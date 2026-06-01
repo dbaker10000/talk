@@ -47,11 +47,13 @@ class OpenAIService:
         self,
         talk: Talk,
         changed_prompt_section_ids: list[int] | None = None,
+        global_prompt_changed: bool = False,
         force_rerun: bool = False,
     ) -> StructuredTalkResponse:
         prompt = self._build_revision_prompt(
             talk,
             changed_prompt_section_ids=changed_prompt_section_ids or [],
+            global_prompt_changed=global_prompt_changed,
             force_rerun=force_rerun,
         )
         return self._run_structured_request(prompt)
@@ -133,6 +135,9 @@ Instructions:
 - Keep the overall draft aligned with the target duration.
 - Assign a realistic target_time_minutes for each section.
 - Use clear labels and complete prose for each section text.
+- Treat reference files mainly as examples of tone, structure, flow, and phrasing style.
+- Do not mention the reference files inside the talk unless the user prompt clearly asks for that.
+- Produce a talk draft that sounds ready to speak, not a rough outline.
 - Notes may include timing or structure guidance for the user.
 """.strip()
 
@@ -140,6 +145,7 @@ Instructions:
         self,
         talk: Talk,
         changed_prompt_section_ids: list[int],
+        global_prompt_changed: bool,
         force_rerun: bool,
     ) -> str:
         references = self.collect_reference_context(talk)
@@ -161,6 +167,7 @@ Instructions:
             )
 
         changed_section_summary = ", ".join(str(item) for item in changed_prompt_section_ids) or "None"
+        global_revision_prompt = talk.global_revision_prompt or "No talk-level revision prompt provided."
         rerun_instruction = (
             "The user explicitly chose to rerun the same instructions even though no section prompts changed."
             if force_rerun
@@ -180,6 +187,9 @@ Estimated actual time: {talk.estimated_actual_time}
 Base prompt:
 {talk.base_prompt or "No base prompt provided."}
 
+Talk-level revision prompt:
+{global_revision_prompt}
+
 Reference context:
 {references or "No reference files uploaded."}
 
@@ -189,11 +199,15 @@ Current sections JSON:
 Instructions:
 - Return every section in order.
 - Do not rewrite frozen sections. Keep their text materially unchanged.
+- Preserve the speaker's existing language wherever it already fits the goal.
 - Prioritize rewriting sections where prompt_changed is true.
+- If the talk-level revision prompt changed, apply it across the relevant unfrozen sections while keeping continuity.
 - If prompt_changed is false, only revise a section when timing, flow, or continuity clearly needs improvement.
 - Respect section-specific revision prompts.
 - Changed prompt section ids: {changed_section_summary}
+- Talk-level revision prompt changed: {global_prompt_changed}
 - {rerun_instruction}
+- Treat reference files mainly as examples of tone, cadence, structure, and transitions.
 - Keep continuity across sections.
 - Notes should explain what changed.
 """.strip()
@@ -221,6 +235,9 @@ Words per minute: {talk.words_per_minute}
 Base prompt:
 {talk.base_prompt or "No base prompt provided."}
 
+Talk-level revision prompt:
+{talk.global_revision_prompt or "No talk-level revision prompt provided."}
+
 Reference context:
 {references or "No reference files uploaded."}
 
@@ -239,6 +256,7 @@ Instructions:
 - Keep frozen sections unchanged.
 - Preserve the order and labels of all sections.
 - Match the target section to its timing goal.
+- Use the reference files mainly as examples of tone and structure.
 - Notes should mention the target section that was updated.
 """.strip()
 

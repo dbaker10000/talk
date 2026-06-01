@@ -338,6 +338,18 @@ dd,
   gap: 18px;
 }
 
+.section-card-changed,
+.prompt-panel-changed {
+  box-shadow:
+    var(--shadow),
+    0 0 0 2px rgba(176, 74, 47, 0.18);
+}
+
+.global-prompt-panel {
+  display: grid;
+  gap: 8px;
+}
+
 .chip {
   display: inline-flex;
   border-radius: 999px;

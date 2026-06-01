@@ -24,6 +24,10 @@
         <textarea name="base_prompt" rows="12">{{ talk.base_prompt or "" }}</textarea>
       </label>
       <label>
+        <span>Talk-level revision prompt</span>
+        <textarea name="global_revision_prompt" rows="6" placeholder="Example: tighten transitions, make the conclusion warmer, simplify the application language.">{{ talk.global_revision_prompt or "" }}</textarea>
+      </label>
+      <label>
         <span>Reference files</span>
         <input type="file" name="reference_files" multiple>
       </label>

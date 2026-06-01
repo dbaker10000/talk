@@ -84,6 +84,7 @@ class Talk(TimestampMixin, db.Model):
     duration_minutes = db.Column(db.Float, default=10.0, nullable=False)
     words_per_minute = db.Column(db.Integer, default=130, nullable=False)
     base_prompt = db.Column(db.Text)
+    global_revision_prompt = db.Column(db.Text)
     owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     owner = db.relationship("User", back_populates="talks")

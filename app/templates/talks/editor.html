@@ -18,6 +18,7 @@
 <form method="post" id="talk-editor-form">
   <input type="hidden" name="action" value="save" id="editor-action">
   <input type="hidden" name="force_rerun" value="0" id="force-rerun-input">
+  <input type="hidden" name="original_global_revision_prompt" value="{{ talk.global_revision_prompt or '' }}" id="original-global-revision-prompt">
 
   <section class="toolbar">
     <div class="action-row">
@@ -28,6 +29,22 @@
       <button class="button button-secondary" type="submit" onclick="setEditorAction('ai_update')">Update with AI</button>
       <button class="button button-primary" type="submit" onclick="setEditorAction('save')">Save</button>
     </div>
+  </section>
+
+  <section class="panel global-prompt-panel">
+    <label class="stack-field">
+      <span>Talk-level revision prompt</span>
+      <textarea
+        name="global_revision_prompt"
+        rows="4"
+        id="global-revision-prompt"
+        data-global-revision-prompt
+        placeholder="Describe whole-talk changes here, such as making the tone warmer, shortening transitions, or improving the conclusion."
+      >{{ talk.global_revision_prompt or "" }}</textarea>
+    </label>
+    <p class="muted">
+      Use this for whole-talk direction. Use section prompts below when you want only specific sections adjusted.
+    </p>
   </section>
 
   <section class="section-stack" data-editor-root>
