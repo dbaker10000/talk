@@ -256,6 +256,12 @@ def _global_revision_prompt_changed(talk: Talk, form) -> bool:
     return current_prompt != original_prompt
 
 
+def _has_any_revision_instructions(talk: Talk) -> bool:
+    if (talk.global_revision_prompt or "").strip():
+        return True
+    return any((section.revision_prompt or "").strip() for section in talk.sections)
+
+
 def _normalize_sort_order(talk: Talk) -> None:
     for index, section in enumerate(sorted(talk.sections, key=lambda item: item.sort_order)):
         section.sort_order = index
@@ -308,12 +314,18 @@ def _generate_sections(talk: Talk):
 def _revise_talk(talk: Talk):
     changed_prompt_section_ids = _changed_prompt_section_ids(talk, request.form)
     global_prompt_changed = _global_revision_prompt_changed(talk, request.form)
+    has_any_revision_instructions = _has_any_revision_instructions(talk)
     force_rerun = request.form.get("force_rerun") == "1"
 
-    if not changed_prompt_section_ids and not global_prompt_changed and not force_rerun:
+    if (
+        not changed_prompt_section_ids
+        and not global_prompt_changed
+        and not has_any_revision_instructions
+        and not force_rerun
+    ):
         db.session.rollback()
         flash(
-            "No talk-level or section-level revision prompts changed. Confirm rerun in the editor if you want to send the same instructions again.",
+            "No talk-level or section-level revision prompts are present. Add revision instructions or confirm a rerun if you want to send the same draft back again.",
             "warning",
         )
         return redirect(url_for("talks.editor", talk_id=talk.id))
