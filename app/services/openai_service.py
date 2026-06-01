@@ -1,0 +1,243 @@
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from openai import OpenAI
+from pydantic import BaseModel, Field
+from pypdf import PdfReader
+from docx import Document
+
+from ..models import ReferenceFile, Talk, TalkSection
+
+
+class AIServiceError(Exception):
+    pass
+
+
+class StructuredSection(BaseModel):
+    label: str
+    text: str
+    target_time_minutes: float = Field(default=1.0, ge=0)
+
+
+class StructuredTalkResponse(BaseModel):
+    talk_title: str
+    sections: list[StructuredSection]
+    notes: str = ""
+
+
+class OpenAIService:
+    def __init__(self):
+        api_key = os.environ.get("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=api_key) if api_key else None
+        self.model = os.environ.get("OPENAI_MODEL", "gpt-5.5")
+        self.reference_char_limit = 24000
+
+    def is_configured(self) -> bool:
+        return self.client is not None
+
+    def generate_full_talk(self, talk: Talk) -> StructuredTalkResponse:
+        prompt = self._build_generation_prompt(talk)
+        return self._run_structured_request(prompt)
+
+    def revise_talk(self, talk: Talk) -> StructuredTalkResponse:
+        prompt = self._build_revision_prompt(talk)
+        return self._run_structured_request(prompt)
+
+    def revise_single_section(self, talk: Talk, section: TalkSection) -> StructuredTalkResponse:
+        prompt = self._build_single_section_prompt(talk, section)
+        return self._run_structured_request(prompt)
+
+    def collect_reference_context(self, talk: Talk) -> str:
+        chunks = []
+        used_chars = 0
+
+        for ref in talk.reference_files:
+            extracted = self._extract_reference_text(ref)
+            if not extracted:
+                continue
+
+            block = f"\n\nFILE: {ref.original_filename}\n{extracted.strip()}"
+            remaining = self.reference_char_limit - used_chars
+            if remaining <= 0:
+                break
+
+            trimmed = block[:remaining]
+            chunks.append(trimmed)
+            used_chars += len(trimmed)
+
+        return "".join(chunks).strip()
+
+    def _run_structured_request(self, prompt: str) -> StructuredTalkResponse:
+        if not self.client:
+            raise AIServiceError("OPENAI_API_KEY is not configured.")
+
+        try:
+            response = self.client.responses.parse(
+                model=self.model,
+                input=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert talk-writing assistant. Return only structured "
+                            "content that can be used to update a speech outline and draft."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                text_format=StructuredTalkResponse,
+            )
+        except Exception as exc:
+            raise AIServiceError(f"OpenAI request failed: {exc}") from exc
+
+        parsed = response.output_parsed
+        if not parsed:
+            raise AIServiceError("The AI response did not include structured content.")
+        return parsed
+
+    def _build_generation_prompt(self, talk: Talk) -> str:
+        structure = self._serialize_sections(talk.sections)
+        references = self.collect_reference_context(talk)
+
+        return f"""
+Create a meeting talk draft as structured JSON.
+
+Talk title: {talk.title}
+Talk theme: {talk.theme}
+Duration minutes: {talk.duration_minutes}
+Words per minute: {talk.words_per_minute}
+Target total word count: {talk.target_total_word_count}
+Base prompt:
+{talk.base_prompt or "No base prompt provided."}
+
+Existing section labels and timing guidance:
+{structure or "No existing sections. Propose a strong structure."}
+
+Reference context:
+{references or "No reference files uploaded."}
+
+Instructions:
+- Return sections in a logical order.
+- Keep the overall draft aligned with the target duration.
+- Assign a realistic target_time_minutes for each section.
+- Use clear labels and complete prose for each section text.
+- Notes may include timing or structure guidance for the user.
+""".strip()
+
+    def _build_revision_prompt(self, talk: Talk) -> str:
+        references = self.collect_reference_context(talk)
+        sections = []
+        for section in talk.sections:
+            sections.append(
+                {
+                    "label": section.label,
+                    "text": section.text,
+                    "revision_prompt": section.revision_prompt or "",
+                    "is_frozen": section.is_frozen,
+                    "target_time_minutes": section.target_time_minutes,
+                    "actual_time_minutes": section.actual_time_minutes,
+                    "actual_word_count": section.actual_word_count,
+                    "target_word_count": section.target_word_count,
+                }
+            )
+
+        return f"""
+Revise this talk while respecting frozen sections and preserving user wording when possible.
+
+Talk title: {talk.title}
+Talk theme: {talk.theme}
+Duration minutes: {talk.duration_minutes}
+Words per minute: {talk.words_per_minute}
+Target total word count: {talk.target_total_word_count}
+Actual total word count: {talk.actual_total_word_count}
+Estimated actual time: {talk.estimated_actual_time}
+Base prompt:
+{talk.base_prompt or "No base prompt provided."}
+
+Reference context:
+{references or "No reference files uploaded."}
+
+Current sections JSON:
+{json.dumps(sections, indent=2)}
+
+Instructions:
+- Return every section in order.
+- Do not rewrite frozen sections. Keep their text materially unchanged.
+- Update unfrozen sections when they need timing, flow, or prompt-based improvements.
+- Respect section-specific revision prompts.
+- Keep continuity across sections.
+- Notes should explain what changed.
+""".strip()
+
+    def _build_single_section_prompt(self, talk: Talk, section: TalkSection) -> str:
+        references = self.collect_reference_context(talk)
+        all_sections = [
+            {
+                "label": item.label,
+                "text": item.text,
+                "revision_prompt": item.revision_prompt or "",
+                "is_frozen": item.is_frozen,
+                "target_time_minutes": item.target_time_minutes,
+            }
+            for item in talk.sections
+        ]
+
+        return f"""
+Revise only one section in this talk and return the full section list, leaving all non-target sections unchanged.
+
+Talk title: {talk.title}
+Talk theme: {talk.theme}
+Duration minutes: {talk.duration_minutes}
+Words per minute: {talk.words_per_minute}
+Base prompt:
+{talk.base_prompt or "No base prompt provided."}
+
+Reference context:
+{references or "No reference files uploaded."}
+
+Target section label: {section.label}
+Target section current text:
+{section.text}
+
+Target section revision prompt:
+{section.revision_prompt or "No section-specific prompt provided."}
+
+All sections JSON:
+{json.dumps(all_sections, indent=2)}
+
+Instructions:
+- Only rewrite the target section.
+- Keep frozen sections unchanged.
+- Preserve the order and labels of all sections.
+- Match the target section to its timing goal.
+- Notes should mention the target section that was updated.
+""".strip()
+
+    def _serialize_sections(self, sections: list[TalkSection]) -> str:
+        if not sections:
+            return ""
+        return "\n".join(
+            f"- {section.label}: target {section.target_time_minutes} min"
+            for section in sections
+        )
+
+    def _extract_reference_text(self, ref: ReferenceFile) -> str:
+        path = Path(ref.file_path)
+        if not path.exists():
+            return ""
+
+        suffix = path.suffix.lower()
+        try:
+            if suffix in {".txt", ".md", ".rtf"}:
+                return path.read_text(encoding="utf-8", errors="ignore")
+            if suffix == ".pdf":
+                return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+            if suffix == ".docx":
+                document = Document(str(path))
+                return "\n".join(paragraph.text for paragraph in document.paragraphs)
+        except Exception:
+            return ""
+        return ""

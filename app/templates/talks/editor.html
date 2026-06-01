@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Editor | {{ talk.title }}{% endblock %}
+{% block content %}
+<section class="editor-hero">
+  <div>
+    <p class="eyebrow">Talk editor</p>
+    <h1>{{ talk.title }}</h1>
+    <p class="lede">{{ talk.theme }}</p>
+  </div>
+  <div class="stats-strip">
+    <div><span>Target time</span><strong>{{ talk.duration_minutes }} min</strong></div>
+    <div><span>Actual time</span><strong data-talk-actual-time>{{ talk.estimated_actual_time }} min</strong></div>
+    <div><span>Target words</span><strong>{{ talk.target_total_word_count }}</strong></div>
+    <div><span>Actual words</span><strong data-talk-actual-words>{{ talk.actual_total_word_count }}</strong></div>
+  </div>
+</section>
+
+<form method="post" id="talk-editor-form">
+  <input type="hidden" name="action" value="save" id="editor-action">
+
+  <section class="toolbar">
+    <div class="action-row">
+      <a class="button button-secondary" href="{{ url_for('talks.settings', talk_id=talk.id) }}">Settings</a>
+      <a class="button button-secondary" href="{{ url_for('talks.view', talk_id=talk.id) }}">View</a>
+      <button class="button button-secondary" type="submit" onclick="setEditorAction('add_section')">Add section</button>
+      <button class="button button-secondary" type="submit" onclick="setEditorAction('generate')">Auto-generate sections</button>
+      <button class="button button-secondary" type="submit" onclick="setEditorAction('ai_update')">Update with AI</button>
+      <button class="button button-primary" type="submit" onclick="setEditorAction('save')">Save</button>
+    </div>
+  </section>
+
+  <section class="section-stack" data-editor-root>
+    {% for section in talk.sections %}
+      <article class="panel section-card" data-section-card>
+        <input type="hidden" name="section-{{ section.id }}-sort-order" value="{{ section.sort_order }}" data-sort-order-input>
+        <header class="section-card-header">
+          <div class="section-title-row">
+            <label>
+              <span>Label</span>
+              <input type="text" name="section-{{ section.id }}-label" value="{{ section.label }}" required>
+            </label>
+            <label class="inline-check">
+              <input type="checkbox" name="section-{{ section.id }}-frozen" {% if section.is_frozen %}checked{% endif %}>
+              <span>Freeze</span>
+            </label>
+          </div>
+          <div class="section-actions">
+            <button class="button button-ghost" type="button" onclick="moveSection(this, -1)">Up</button>
+            <button class="button button-ghost" type="button" onclick="moveSection(this, 1)">Down</button>
+            <button class="button button-secondary" type="submit" name="section_id" value="{{ section.id }}" onclick="setEditorAction('update_section')">Update section</button>
+            <button class="button button-danger" type="submit" name="section_id" value="{{ section.id }}" onclick="setEditorAction('delete_section')">Delete</button>
+          </div>
+        </header>
+
+        <div class="section-meta-grid">
+          <label>
+            <span>Target time (minutes)</span>
+            <input type="number" step="0.25" min="0" name="section-{{ section.id }}-target-time" value="{{ section.target_time_minutes }}" data-target-time-input>
+          </label>
+          <div class="stat-box">
+            <span>Target words</span>
+            <strong data-target-words>{{ section.target_word_count }}</strong>
+          </div>
+          <div class="stat-box">
+            <span>Actual words</span>
+            <strong data-actual-words>{{ section.actual_word_count }}</strong>
+          </div>
+          <div class="stat-box">
+            <span>Actual time</span>
+            <strong data-actual-time>{{ section.actual_time_minutes }} min</strong>
+          </div>
+        </div>
+
+        <label class="stack-field">
+          <span>Section prompt / refinement instruction</span>
+          <textarea name="section-{{ section.id }}-prompt" rows="3">{{ section.revision_prompt or "" }}</textarea>
+        </label>
+
+        <label class="stack-field">
+          <span>Section text</span>
+          <textarea name="section-{{ section.id }}-text" rows="10" data-section-text>{{ section.text }}</textarea>
+        </label>
+      </article>
+    {% endfor %}
+  </section>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.talkEditorConfig = {
+    wordsPerMinute: {{ talk.words_per_minute | tojson }}
+  };
+  function setEditorAction(action) {
+    document.getElementById('editor-action').value = action;
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}View | {{ talk.title }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Copy-friendly view</p>
+    <h1>{{ talk.title }}</h1>
+    <p class="lede">{{ talk.theme }}</p>
+  </div>
+  <div class="action-row">
+    <a class="button button-secondary" href="{{ url_for('talks.editor', talk_id=talk.id) }}">Back to editor</a>
+    <a class="button button-secondary" href="{{ url_for('talks.settings', talk_id=talk.id) }}">Settings</a>
+  </div>
+</section>
+
+<section class="panel print-view">
+  <div class="view-meta">
+    <span><strong>Total words:</strong> {{ talk.actual_total_word_count }}</span>
+    <span><strong>Estimated time:</strong> {{ talk.estimated_actual_time }} min</span>
+  </div>
+  {% for section in talk.sections %}
+    <article class="view-section">
+      <h2>{{ section.label }}</h2>
+      <div class="view-body">{{ section.text | replace('\n', '<br>') | safe }}</div>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Create Talk | {{ app_name }}{% endblock %}
+{% block content %}
+<section class="panel form-panel narrow">
+  <div class="page-header compact">
+    <div>
+      <p class="eyebrow">New talk</p>
+      <h1>Create talk</h1>
+    </div>
+  </div>
+  <form method="post" class="stack-form">
+    <label><span>Title</span><input type="text" name="title" required></label>
+    <label><span>Theme</span><input type="text" name="theme" required></label>
+    <label><span>Duration (minutes)</span><input type="number" step="0.25" min="1" name="duration_minutes" value="10" required></label>
+    <label><span>Words per minute</span><input type="number" min="60" max="220" name="words_per_minute" value="130" required></label>
+    <label>
+      <span>Base prompt</span>
+      <textarea name="base_prompt" rows="8" placeholder="Describe the goal, desired tone, structure, and constraints."></textarea>
+    </label>
+    <button class="button button-primary" type="submit">Create talk</button>
+  </form>
+</section>
+{% endblock %}

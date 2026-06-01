@@ -1,0 +1,309 @@
+from __future__ import annotations
+
+import mimetypes
+from pathlib import Path
+
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from ..extensions import db
+from ..models import ReferenceFile, Talk, TalkSection
+from ..services.openai_service import AIServiceError, OpenAIService
+from ..utils import is_allowed_reference_file, talk_access_required, unique_upload_name
+
+
+talks_bp = Blueprint("talks", __name__, url_prefix="/talks")
+openai_service = OpenAIService()
+
+
+@talks_bp.route("/")
+@login_required
+def dashboard():
+    if current_user.is_admin:
+        talks = Talk.query.order_by(Talk.updated_at.desc()).all()
+    else:
+        talks = Talk.query.filter_by(owner_id=current_user.id).order_by(Talk.updated_at.desc()).all()
+    return render_template("talks/dashboard.html", talks=talks)
+
+
+@talks_bp.route("/create", methods=["GET", "POST"])
+@login_required
+def create():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        theme = request.form.get("theme", "").strip()
+        duration_minutes = float(request.form.get("duration_minutes", 10) or 10)
+        words_per_minute = int(request.form.get("words_per_minute", 130) or 130)
+        base_prompt = request.form.get("base_prompt", "").strip()
+
+        if not title or not theme:
+            flash("Title and theme are required.", "danger")
+            return render_template("talks/create.html")
+
+        talk = Talk(
+            title=title,
+            theme=theme,
+            duration_minutes=duration_minutes,
+            words_per_minute=words_per_minute,
+            base_prompt=base_prompt,
+            owner=current_user,
+        )
+        db.session.add(talk)
+        db.session.flush()
+
+        starter_sections = [
+            ("Intro", 1.0),
+            ("Main Point", max(duration_minutes - 2.0, 1.0)),
+            ("Conclusion", 1.0),
+        ]
+        for index, (label, target_time) in enumerate(starter_sections):
+            db.session.add(
+                TalkSection(
+                    talk=talk,
+                    label=label,
+                    target_time_minutes=target_time,
+                    sort_order=index,
+                )
+            )
+
+        db.session.commit()
+        flash("Talk created.", "success")
+        return redirect(url_for("talks.editor", talk_id=talk.id))
+
+    return render_template("talks/create.html")
+
+
+@talks_bp.route("/<int:talk_id>/settings", methods=["GET", "POST"])
+@login_required
+def settings(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+
+    if request.method == "POST":
+        talk.title = request.form.get("title", "").strip()
+        talk.theme = request.form.get("theme", "").strip()
+        talk.duration_minutes = float(request.form.get("duration_minutes", talk.duration_minutes) or 0)
+        talk.words_per_minute = int(request.form.get("words_per_minute", talk.words_per_minute) or 0)
+        talk.base_prompt = request.form.get("base_prompt", "").strip()
+
+        uploads = request.files.getlist("reference_files")
+        for upload in uploads:
+            if not upload or not upload.filename:
+                continue
+            if not is_allowed_reference_file(upload.filename):
+                flash(f"Skipped unsupported file: {upload.filename}", "warning")
+                continue
+
+            stored_filename = unique_upload_name(upload.filename)
+            file_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_filename
+            upload.save(file_path)
+
+            ref = ReferenceFile(
+                talk=talk,
+                original_filename=upload.filename,
+                stored_filename=stored_filename,
+                file_path=str(file_path),
+                mime_type=upload.mimetype or mimetypes.guess_type(upload.filename)[0],
+                file_size=file_path.stat().st_size,
+            )
+            db.session.add(ref)
+
+        db.session.commit()
+        flash("Talk settings updated.", "success")
+        return redirect(url_for("talks.settings", talk_id=talk.id))
+
+    return render_template("talks/settings.html", talk=talk)
+
+
+@talks_bp.route("/<int:talk_id>/reference-files/<int:file_id>/delete", methods=["POST"])
+@login_required
+def delete_reference_file(talk_id, file_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+    ref = ReferenceFile.query.filter_by(id=file_id, talk_id=talk.id).first_or_404()
+
+    path = Path(ref.file_path)
+    if path.exists():
+        path.unlink()
+    db.session.delete(ref)
+    db.session.commit()
+    flash("Reference file removed.", "success")
+    return redirect(url_for("talks.settings", talk_id=talk.id))
+
+
+@talks_bp.route("/<int:talk_id>/editor", methods=["GET", "POST"])
+@login_required
+def editor(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+
+    if request.method == "POST":
+        action = request.form.get("action", "save")
+
+        if action == "add_section":
+            next_order = len(talk.sections)
+            db.session.add(
+                TalkSection(
+                    talk=talk,
+                    label="New Section",
+                    target_time_minutes=1.0,
+                    sort_order=next_order,
+                )
+            )
+            db.session.commit()
+            flash("Section added.", "success")
+            return redirect(url_for("talks.editor", talk_id=talk.id))
+
+        _apply_section_form_data(talk, request.form)
+
+        if action == "save":
+            db.session.commit()
+            flash("Talk saved.", "success")
+            return redirect(url_for("talks.editor", talk_id=talk.id))
+
+        if action == "generate":
+            return _generate_sections(talk)
+
+        if action == "ai_update":
+            return _revise_talk(talk)
+
+        if action == "update_section":
+            section_id = int(request.form.get("section_id"))
+            return _revise_section(talk, section_id)
+
+        if action == "delete_section":
+            section_id = int(request.form.get("section_id"))
+            section = TalkSection.query.filter_by(id=section_id, talk_id=talk.id).first_or_404()
+            db.session.delete(section)
+            db.session.flush()
+            _normalize_sort_order(talk)
+            db.session.commit()
+            flash("Section removed.", "success")
+            return redirect(url_for("talks.editor", talk_id=talk.id))
+
+    return render_template("talks/editor.html", talk=talk)
+
+
+@talks_bp.route("/<int:talk_id>/view")
+@login_required
+def view(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+    return render_template("talks/view.html", talk=talk)
+
+
+@talks_bp.route("/<int:talk_id>/delete", methods=["POST"])
+@login_required
+def delete(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+
+    for ref in talk.reference_files:
+        path = Path(ref.file_path)
+        if path.exists():
+            path.unlink()
+
+    db.session.delete(talk)
+    db.session.commit()
+    flash("Talk deleted.", "success")
+    return redirect(url_for("talks.dashboard"))
+
+
+def _apply_section_form_data(talk: Talk, form) -> None:
+    for section in talk.sections:
+        prefix = f"section-{section.id}"
+        section.label = form.get(f"{prefix}-label", section.label).strip() or "Untitled Section"
+        section.text = form.get(f"{prefix}-text", section.text)
+        section.revision_prompt = form.get(f"{prefix}-prompt", "").strip()
+        section.target_time_minutes = float(
+            form.get(f"{prefix}-target-time", section.target_time_minutes) or 0
+        )
+        section.is_frozen = form.get(f"{prefix}-frozen") == "on"
+        section.sort_order = int(form.get(f"{prefix}-sort-order", section.sort_order) or 0)
+
+    _normalize_sort_order(talk)
+
+
+def _normalize_sort_order(talk: Talk) -> None:
+    for index, section in enumerate(sorted(talk.sections, key=lambda item: item.sort_order)):
+        section.sort_order = index
+
+
+def _generate_sections(talk: Talk):
+    try:
+        structured = openai_service.generate_full_talk(talk)
+    except AIServiceError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+        return redirect(url_for("talks.editor", talk_id=talk.id))
+
+    talk.sections.clear()
+    db.session.flush()
+    for index, item in enumerate(structured.sections):
+        db.session.add(
+            TalkSection(
+                talk=talk,
+                label=item.label,
+                text=item.text,
+                target_time_minutes=item.target_time_minutes,
+                sort_order=index,
+            )
+        )
+    db.session.commit()
+    flash("Sections generated with AI.", "success")
+    return redirect(url_for("talks.editor", talk_id=talk.id))
+
+
+def _revise_talk(talk: Talk):
+    try:
+        structured = openai_service.revise_talk(talk)
+    except AIServiceError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+        return redirect(url_for("talks.editor", talk_id=talk.id))
+
+    for index, item in enumerate(structured.sections):
+        if index >= len(talk.sections):
+            db.session.add(
+                TalkSection(
+                    talk=talk,
+                    label=item.label,
+                    text=item.text,
+                    target_time_minutes=item.target_time_minutes,
+                    sort_order=index,
+                )
+            )
+            continue
+
+        section = talk.sections[index]
+        if section.is_frozen:
+            continue
+
+        section.label = item.label
+        section.text = item.text
+        section.target_time_minutes = item.target_time_minutes
+
+    db.session.commit()
+    flash("Talk updated with AI.", "success")
+    return redirect(url_for("talks.editor", talk_id=talk.id))
+
+
+def _revise_section(talk: Talk, section_id: int):
+    section = TalkSection.query.filter_by(id=section_id, talk_id=talk.id).first_or_404()
+    try:
+        structured = openai_service.revise_single_section(talk, section)
+    except AIServiceError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+        return redirect(url_for("talks.editor", talk_id=talk.id))
+
+    for current, returned in zip(talk.sections, structured.sections):
+        if current.id == section.id:
+            current.label = returned.label
+            current.text = returned.text
+            current.target_time_minutes = returned.target_time_minutes
+            break
+
+    db.session.commit()
+    flash(f"Section '{section.label}' updated with AI.", "success")
+    return redirect(url_for("talks.editor", talk_id=talk.id))

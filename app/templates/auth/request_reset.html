@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Request Reset | {{ app_name }}{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Request a password reset</h1>
+  <form method="post" class="stack-form">
+    <label>
+      <span>Username or email</span>
+      <input type="text" name="identity" required>
+    </label>
+    <label>
+      <span>Optional note for admin</span>
+      <textarea name="note" rows="4" placeholder="Example: locked out before meeting prep"></textarea>
+    </label>
+    <button class="button button-primary" type="submit">Submit request</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | {{ app_name }}{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">Talk workspace</p>
+    <h1>Your talks</h1>
+  </div>
+  <a class="button button-primary" href="{{ url_for('talks.create') }}">Create talk</a>
+</section>
+
+{% if talks %}
+  <section class="card-grid">
+    {% for talk in talks %}
+      <article class="panel talk-card">
+        <div class="talk-card-header">
+          <div>
+            <h2>{{ talk.title }}</h2>
+            <p class="muted">{{ talk.theme }}</p>
+          </div>
+          <span class="chip">{{ talk.duration_minutes }} min</span>
+        </div>
+        <dl class="stats-grid">
+          <div><dt>Target words</dt><dd>{{ talk.target_total_word_count }}</dd></div>
+          <div><dt>Actual words</dt><dd>{{ talk.actual_total_word_count }}</dd></div>
+          <div><dt>Estimated time</dt><dd>{{ talk.estimated_actual_time }} min</dd></div>
+          <div><dt>Sections</dt><dd>{{ talk.sections|length }}</dd></div>
+        </dl>
+        <div class="action-row">
+          <a class="button button-secondary" href="{{ url_for('talks.editor', talk_id=talk.id) }}">Edit</a>
+          <a class="button button-secondary" href="{{ url_for('talks.settings', talk_id=talk.id) }}">Settings</a>
+          <a class="button button-secondary" href="{{ url_for('talks.view', talk_id=talk.id) }}">View</a>
+          <form method="post" action="{{ url_for('talks.delete', talk_id=talk.id) }}">
+            <button class="button button-danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <section class="panel empty-panel">
+    <h2>No talks yet</h2>
+    <p>Start with a title, theme, duration, and base prompt.</p>
+  </section>
+{% endif %}
+{% endblock %}

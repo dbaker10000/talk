@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Welcome | {{ app_name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Flask + OpenAI talk drafting</p>
+    <h1>Build meeting talks with structure, timing, and revision control.</h1>
+    <p class="lede">
+      Draft sections, upload reference examples, freeze language you want preserved,
+      and refine the rest with AI.
+    </p>
+    <div class="hero-actions">
+      <a class="button button-primary" href="{{ url_for('auth.login') }}">Sign in</a>
+      <a class="button button-secondary" href="{{ url_for('auth.request_reset') }}">Request password reset</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
