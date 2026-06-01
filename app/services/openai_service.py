@@ -134,6 +134,7 @@ Instructions:
 - Return sections in a logical order.
 - Keep the overall draft aligned with the target duration.
 - Assign a realistic target_time_minutes for each section.
+- Use quarter-minute increments for target_time_minutes, such as 0.25, 0.5, 0.75, 1.0, 1.25, and so on.
 - Use clear labels and complete prose for each section text.
 - Treat reference files mainly as examples of tone, structure, flow, and phrasing style.
 - Do not mention the reference files inside the talk unless the user prompt clearly asks for that.
@@ -208,6 +209,7 @@ Instructions:
 - Talk-level revision prompt changed: {global_prompt_changed}
 - {rerun_instruction}
 - Treat reference files mainly as examples of tone, cadence, structure, and transitions.
+- Use quarter-minute increments for target_time_minutes.
 - Keep continuity across sections.
 - Notes should explain what changed.
 """.strip()
@@ -257,6 +259,7 @@ Instructions:
 - Preserve the order and labels of all sections.
 - Match the target section to its timing goal.
 - Use the reference files mainly as examples of tone and structure.
+- Use quarter-minute increments for target_time_minutes.
 - Notes should mention the target section that was updated.
 """.strip()
 

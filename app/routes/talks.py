@@ -116,6 +116,8 @@ def delete_reference_file(talk_id, file_id):
 def editor(talk_id):
     talk = Talk.query.get_or_404(talk_id)
     talk_access_required(talk)
+    if _normalize_existing_section_times(talk):
+        db.session.commit()
 
     if request.method == "POST":
         section_action = request.form.get("section_action", "").strip()
@@ -205,8 +207,8 @@ def _apply_section_form_data(talk: Talk, form) -> None:
         section.label = form.get(f"{prefix}-label", section.label).strip() or "Untitled Section"
         section.text = form.get(f"{prefix}-text", section.text)
         section.revision_prompt = form.get(f"{prefix}-prompt", "").strip()
-        section.target_time_minutes = float(
-            form.get(f"{prefix}-target-time", section.target_time_minutes) or 0
+        section.target_time_minutes = _normalized_target_time(
+            float(form.get(f"{prefix}-target-time", section.target_time_minutes) or 0)
         )
         section.is_frozen = form.get(f"{prefix}-frozen") == "on"
         section.sort_order = int(form.get(f"{prefix}-sort-order", section.sort_order) or 0)
@@ -259,6 +261,23 @@ def _normalize_sort_order(talk: Talk) -> None:
         section.sort_order = index
 
 
+def _normalized_target_time(value: float) -> float:
+    if value <= 0:
+        return 0.25
+    rounded = round(value * 4) / 4
+    return round(max(0.25, rounded), 2)
+
+
+def _normalize_existing_section_times(talk: Talk) -> bool:
+    changed = False
+    for section in talk.sections:
+        normalized = _normalized_target_time(section.target_time_minutes)
+        if normalized != section.target_time_minutes:
+            section.target_time_minutes = normalized
+            changed = True
+    return changed
+
+
 def _generate_sections(talk: Talk):
     try:
         structured = openai_service.generate_full_talk(talk)
@@ -275,7 +294,7 @@ def _generate_sections(talk: Talk):
                 talk=talk,
                 label=item.label,
                 text=item.text,
-                target_time_minutes=item.target_time_minutes,
+                target_time_minutes=_normalized_target_time(item.target_time_minutes),
                 sort_order=index,
             )
         )
@@ -318,7 +337,7 @@ def _revise_talk(talk: Talk):
                     talk=talk,
                     label=item.label,
                     text=item.text,
-                    target_time_minutes=item.target_time_minutes,
+                    target_time_minutes=_normalized_target_time(item.target_time_minutes),
                     sort_order=index,
                 )
             )
@@ -330,7 +349,7 @@ def _revise_talk(talk: Talk):
 
         section.label = item.label
         section.text = item.text
-        section.target_time_minutes = item.target_time_minutes
+        section.target_time_minutes = _normalized_target_time(item.target_time_minutes)
 
     db.session.commit()
     flash("Talk updated with AI.", "success")
@@ -355,7 +374,9 @@ def _revise_section(talk: Talk, section_id: int):
         if current.id == section.id:
             current.label = returned.label
             current.text = returned.text
-            current.target_time_minutes = returned.target_time_minutes
+            current.target_time_minutes = _normalized_target_time(
+                returned.target_time_minutes
+            )
             break
 
     db.session.commit()
