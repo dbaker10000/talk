@@ -19,10 +19,7 @@ openai_service = OpenAIService()
 @talks_bp.route("/")
 @login_required
 def dashboard():
-    if current_user.is_admin:
-        talks = Talk.query.order_by(Talk.updated_at.desc()).all()
-    else:
-        talks = Talk.query.filter_by(owner_id=current_user.id).order_by(Talk.updated_at.desc()).all()
+    talks = Talk.query.filter_by(owner_id=current_user.id).order_by(Talk.updated_at.desc()).all()
     return render_template("talks/dashboard.html", talks=talks)
 
 
@@ -224,6 +221,17 @@ def _apply_section_form_data(talk: Talk, form) -> None:
     _normalize_sort_order(talk)
 
 
+def _changed_prompt_section_ids(talk: Talk, form) -> list[int]:
+    changed_ids = []
+    for section in talk.sections:
+        prefix = f"section-{section.id}"
+        original_prompt = form.get(f"{prefix}-original-prompt", "").strip()
+        current_prompt = (section.revision_prompt or "").strip()
+        if current_prompt != original_prompt:
+            changed_ids.append(section.id)
+    return changed_ids
+
+
 def _normalize_sort_order(talk: Talk) -> None:
     for index, section in enumerate(sorted(talk.sections, key=lambda item: item.sort_order)):
         section.sort_order = index
@@ -255,8 +263,23 @@ def _generate_sections(talk: Talk):
 
 
 def _revise_talk(talk: Talk):
+    changed_prompt_section_ids = _changed_prompt_section_ids(talk, request.form)
+    force_rerun = request.form.get("force_rerun") == "1"
+
+    if not changed_prompt_section_ids and not force_rerun:
+        db.session.rollback()
+        flash(
+            "No section prompts changed. Confirm rerun in the editor if you want to send the same instructions again.",
+            "warning",
+        )
+        return redirect(url_for("talks.editor", talk_id=talk.id))
+
     try:
-        structured = openai_service.revise_talk(talk)
+        structured = openai_service.revise_talk(
+            talk,
+            changed_prompt_section_ids=changed_prompt_section_ids,
+            force_rerun=force_rerun,
+        )
     except AIServiceError as exc:
         db.session.rollback()
         flash(str(exc), "danger")

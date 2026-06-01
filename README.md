@@ -61,6 +61,8 @@ AI Talk Builder is a Flask web app for creating, refining, and viewing meeting t
 
 `/Users/danielbaker/apps/talk/app/services/openai_service.py` centralizes prompt construction, reference file extraction, structured response parsing, and error handling.
 
+The app is currently hard-locked to `gpt-5.5` for talk generation and revision so it does not silently fall back to a weaker model.
+
 The implementation uses the OpenAI Python SDK's Responses API and structured parsing support. OpenAI's docs show `client.responses.create(...)` as the recommended Python entry point and document structured parsing via `client.responses.parse(..., text_format=YourPydanticModel)` for schema-safe output. Sources:
 
 - [OpenAI SDKs and CLI docs](https://developers.openai.com/api/docs/libraries)

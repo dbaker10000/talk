@@ -17,6 +17,7 @@
 
 <form method="post" id="talk-editor-form">
   <input type="hidden" name="action" value="save" id="editor-action">
+  <input type="hidden" name="force_rerun" value="0" id="force-rerun-input">
 
   <section class="toolbar">
     <div class="action-row">
@@ -33,6 +34,7 @@
     {% for section in talk.sections %}
       <article class="panel section-card" data-section-card>
         <input type="hidden" name="section-{{ section.id }}-sort-order" value="{{ section.sort_order }}" data-sort-order-input>
+        <input type="hidden" name="section-{{ section.id }}-original-prompt" value="{{ section.revision_prompt or '' }}" data-original-prompt>
         <header class="section-card-header">
           <div class="section-title-row">
             <label>
@@ -73,7 +75,7 @@
 
         <label class="stack-field">
           <span>Section prompt / refinement instruction</span>
-          <textarea name="section-{{ section.id }}-prompt" rows="3">{{ section.revision_prompt or "" }}</textarea>
+          <textarea name="section-{{ section.id }}-prompt" rows="3" data-section-prompt>{{ section.revision_prompt or "" }}</textarea>
         </label>
 
         <label class="stack-field">
@@ -84,6 +86,14 @@
     {% endfor %}
   </section>
 </form>
+
+<div class="loading-overlay" id="loading-overlay" hidden>
+  <div class="loading-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2>Working on your talk</h2>
+    <p id="loading-message">Waiting for the AI response and reloading the updated draft.</p>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

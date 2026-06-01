@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
-
 from openai import OpenAI
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
@@ -30,10 +28,12 @@ class StructuredTalkResponse(BaseModel):
 
 
 class OpenAIService:
+    DEFAULT_MODEL = "gpt-5.5"
+
     def __init__(self):
         api_key = os.environ.get("OPENAI_API_KEY")
         self.client = OpenAI(api_key=api_key) if api_key else None
-        self.model = os.environ.get("OPENAI_MODEL", "gpt-5.5")
+        self.model = self.DEFAULT_MODEL
         self.reference_char_limit = 24000
 
     def is_configured(self) -> bool:
@@ -43,8 +43,17 @@ class OpenAIService:
         prompt = self._build_generation_prompt(talk)
         return self._run_structured_request(prompt)
 
-    def revise_talk(self, talk: Talk) -> StructuredTalkResponse:
-        prompt = self._build_revision_prompt(talk)
+    def revise_talk(
+        self,
+        talk: Talk,
+        changed_prompt_section_ids: list[int] | None = None,
+        force_rerun: bool = False,
+    ) -> StructuredTalkResponse:
+        prompt = self._build_revision_prompt(
+            talk,
+            changed_prompt_section_ids=changed_prompt_section_ids or [],
+            force_rerun=force_rerun,
+        )
         return self._run_structured_request(prompt)
 
     def revise_single_section(self, talk: Talk, section: TalkSection) -> StructuredTalkResponse:
@@ -127,12 +136,18 @@ Instructions:
 - Notes may include timing or structure guidance for the user.
 """.strip()
 
-    def _build_revision_prompt(self, talk: Talk) -> str:
+    def _build_revision_prompt(
+        self,
+        talk: Talk,
+        changed_prompt_section_ids: list[int],
+        force_rerun: bool,
+    ) -> str:
         references = self.collect_reference_context(talk)
         sections = []
         for section in talk.sections:
             sections.append(
                 {
+                    "id": section.id,
                     "label": section.label,
                     "text": section.text,
                     "revision_prompt": section.revision_prompt or "",
@@ -141,8 +156,16 @@ Instructions:
                     "actual_time_minutes": section.actual_time_minutes,
                     "actual_word_count": section.actual_word_count,
                     "target_word_count": section.target_word_count,
+                    "prompt_changed": section.id in changed_prompt_section_ids,
                 }
             )
+
+        changed_section_summary = ", ".join(str(item) for item in changed_prompt_section_ids) or "None"
+        rerun_instruction = (
+            "The user explicitly chose to rerun the same instructions even though no section prompts changed."
+            if force_rerun
+            else "Do not treat this as a blind rerun unless the section data below indicates prompt changes or timing/flow needs."
+        )
 
         return f"""
 Revise this talk while respecting frozen sections and preserving user wording when possible.
@@ -166,8 +189,11 @@ Current sections JSON:
 Instructions:
 - Return every section in order.
 - Do not rewrite frozen sections. Keep their text materially unchanged.
-- Update unfrozen sections when they need timing, flow, or prompt-based improvements.
+- Prioritize rewriting sections where prompt_changed is true.
+- If prompt_changed is false, only revise a section when timing, flow, or continuity clearly needs improvement.
 - Respect section-specific revision prompts.
+- Changed prompt section ids: {changed_section_summary}
+- {rerun_instruction}
 - Keep continuity across sections.
 - Notes should explain what changed.
 """.strip()

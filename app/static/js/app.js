@@ -50,6 +50,35 @@ function renumberSortOrder() {
   });
 }
 
+function hasPromptChanges() {
+  const promptAreas = document.querySelectorAll("[data-section-prompt]");
+  return Array.from(promptAreas).some((area) => {
+    const card = area.closest("[data-section-card]");
+    const original = card.querySelector("[data-original-prompt]");
+    return (area.value || "").trim() !== (original.value || "").trim();
+  });
+}
+
+function setLoadingState(action) {
+  const overlay = document.getElementById("loading-overlay");
+  const message = document.getElementById("loading-message");
+  if (!overlay || !message) return;
+
+  const messages = {
+    generate: "Generating the talk structure and section drafts now.",
+    ai_update: "Updating the talk with AI and reloading changed sections.",
+    update_section: "Updating the selected section and reloading the editor.",
+  };
+
+  message.textContent =
+    messages[action] || "Waiting for the AI response and reloading the updated draft.";
+  overlay.hidden = false;
+  document.body.classList.add("is-loading");
+  document.querySelectorAll("button, input, textarea, select").forEach((element) => {
+    element.disabled = true;
+  });
+}
+
 function moveSection(button, direction) {
   const card = button.closest("[data-section-card]");
   const container = card.parentElement;
@@ -61,8 +90,34 @@ function moveSection(button, direction) {
   renumberSortOrder();
 }
 
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (form.id !== "talk-editor-form") return;
+
+  const action = document.getElementById("editor-action")?.value || "save";
+  const forceRerunInput = document.getElementById("force-rerun-input");
+  if (forceRerunInput) forceRerunInput.value = "0";
+
+  if (action === "ai_update" && !hasPromptChanges()) {
+    const confirmed = window.confirm(
+      "No section prompts changed. Do you want to rerun the same AI update anyway?"
+    );
+    if (!confirmed) {
+      event.preventDefault();
+      return;
+    }
+    if (forceRerunInput) forceRerunInput.value = "1";
+  }
+
+  if (["generate", "ai_update", "update_section"].includes(action)) {
+    setLoadingState(action);
+  }
+});
+
 document.addEventListener("input", (event) => {
-  if (event.target.matches("[data-section-text], [data-target-time-input]")) {
+  if (
+    event.target.matches("[data-section-text], [data-target-time-input], [data-section-prompt]")
+  ) {
     updateEditorMetrics();
   }
 });
