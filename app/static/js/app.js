@@ -99,7 +99,8 @@ function setLoadingState(action) {
 
   message.textContent =
     messages[action] || "Waiting for the AI response and reloading the updated draft.";
-  overlay.hidden = false;
+  overlay.style.display = "grid";
+  overlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("is-loading");
   document.querySelectorAll("button, input, textarea, select").forEach((element) => {
     element.disabled = true;
@@ -109,7 +110,8 @@ function setLoadingState(action) {
 function clearLoadingState() {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) {
-    overlay.hidden = true;
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden", "true");
   }
   document.body.classList.remove("is-loading");
   document.querySelectorAll("button, input, textarea, select").forEach((element) => {
