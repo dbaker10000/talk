@@ -118,7 +118,16 @@ def editor(talk_id):
     talk_access_required(talk)
 
     if request.method == "POST":
-        action = request.form.get("action", "save")
+        section_action = request.form.get("section_action", "").strip()
+        if section_action.startswith("update:"):
+            action = "update_section"
+            section_id = int(section_action.split(":", 1)[1])
+        elif section_action.startswith("delete:"):
+            action = "delete_section"
+            section_id = int(section_action.split(":", 1)[1])
+        else:
+            action = request.form.get("action", "save")
+            section_id = None
 
         if action == "add_section":
             next_order = len(talk.sections)
@@ -151,11 +160,9 @@ def editor(talk_id):
             return _revise_talk(talk)
 
         if action == "update_section":
-            section_id = int(request.form.get("section_id"))
             return _revise_section(talk, section_id)
 
         if action == "delete_section":
-            section_id = int(request.form.get("section_id"))
             section = TalkSection.query.filter_by(id=section_id, talk_id=talk.id).first_or_404()
             db.session.delete(section)
             db.session.flush()

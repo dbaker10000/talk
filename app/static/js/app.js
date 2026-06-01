@@ -134,7 +134,12 @@ document.addEventListener("submit", (event) => {
   const form = event.target;
   if (form.id !== "talk-editor-form") return;
 
-  const action = document.getElementById("editor-action")?.value || "save";
+  const submitter = event.submitter;
+  const action =
+    submitter?.dataset.submitAction ||
+    submitter?.value ||
+    submitter?.getAttribute("value") ||
+    "save";
   const forceRerunInput = document.getElementById("force-rerun-input");
   if (forceRerunInput) forceRerunInput.value = "0";
 

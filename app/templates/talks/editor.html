@@ -16,7 +16,6 @@
 </section>
 
 <form method="post" id="talk-editor-form">
-  <input type="hidden" name="action" value="save" id="editor-action">
   <input type="hidden" name="force_rerun" value="0" id="force-rerun-input">
   <input type="hidden" name="original_global_revision_prompt" value="{{ talk.global_revision_prompt or '' }}" id="original-global-revision-prompt">
 
@@ -24,10 +23,10 @@
     <div class="action-row">
       <a class="button button-secondary" href="{{ url_for('talks.settings', talk_id=talk.id) }}">Settings</a>
       <a class="button button-secondary" href="{{ url_for('talks.view', talk_id=talk.id) }}">View</a>
-      <button class="button button-secondary" type="submit" onclick="setEditorAction('add_section')">Add section</button>
-      <button class="button button-secondary" type="submit" onclick="setEditorAction('generate')">Auto-generate sections</button>
-      <button class="button button-secondary" type="submit" onclick="setEditorAction('ai_update')">Update with AI</button>
-      <button class="button button-primary" type="submit" onclick="setEditorAction('save')">Save</button>
+      <button class="button button-secondary" type="submit" name="action" value="add_section">Add section</button>
+      <button class="button button-secondary" type="submit" name="action" value="generate" data-submit-action="generate">Auto-generate sections</button>
+      <button class="button button-secondary" type="submit" name="action" value="ai_update" data-submit-action="ai_update">Update with AI</button>
+      <button class="button button-primary" type="submit" name="action" value="save">Save</button>
     </div>
   </section>
 
@@ -66,8 +65,8 @@
           <div class="section-actions">
             <button class="button button-ghost" type="button" onclick="moveSection(this, -1)">Up</button>
             <button class="button button-ghost" type="button" onclick="moveSection(this, 1)">Down</button>
-            <button class="button button-secondary" type="submit" name="section_id" value="{{ section.id }}" onclick="setEditorAction('update_section')">Update section</button>
-            <button class="button button-danger" type="submit" name="section_id" value="{{ section.id }}" onclick="setEditorAction('delete_section')">Delete</button>
+            <button class="button button-secondary" type="submit" name="section_action" value="update:{{ section.id }}" data-submit-action="update_section">Update section</button>
+            <button class="button button-danger" type="submit" name="section_action" value="delete:{{ section.id }}">Delete</button>
           </div>
         </header>
 
@@ -118,8 +117,5 @@
   window.talkEditorConfig = {
     wordsPerMinute: {{ talk.words_per_minute | tojson }}
   };
-  function setEditorAction(action) {
-    document.getElementById('editor-action').value = action;
-  }
 </script>
 {% endblock %}
