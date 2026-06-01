@@ -53,6 +53,7 @@
         <input type="hidden" name="section-{{ section.id }}-original-prompt" value="{{ section.revision_prompt or '' }}" data-original-prompt>
         <header class="section-card-header">
           <div class="section-title-row">
+            <div class="section-order-chip" data-section-position></div>
             <label>
               <span>Label</span>
               <input type="text" name="section-{{ section.id }}-label" value="{{ section.label }}" required>

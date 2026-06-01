@@ -47,6 +47,8 @@ function renumberSortOrder() {
   cards.forEach((card, index) => {
     const input = card.querySelector("[data-sort-order-input]");
     if (input) input.value = index;
+    const badge = card.querySelector("[data-section-position]");
+    if (badge) badge.textContent = `Section ${index + 1}`;
   });
 }
 
@@ -128,6 +130,20 @@ function moveSection(button, direction) {
     container.insertBefore(card.nextElementSibling, card);
   }
   renumberSortOrder();
+  card.classList.add("section-card-moved");
+  window.setTimeout(() => {
+    card.classList.remove("section-card-moved");
+  }, 700);
+}
+
+function continueSubmitAfterPaint(form, submitter) {
+  window.setTimeout(() => {
+    if (submitter && typeof form.requestSubmit === "function") {
+      form.requestSubmit(submitter);
+      return;
+    }
+    form.submit();
+  }, 20);
 }
 
 document.addEventListener("submit", (event) => {
@@ -155,7 +171,9 @@ document.addEventListener("submit", (event) => {
   }
 
   if (["generate", "ai_update", "update_section"].includes(action)) {
+    event.preventDefault();
     setLoadingState(action);
+    continueSubmitAfterPaint(form, submitter);
   }
 });
 
