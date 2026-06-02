@@ -166,6 +166,7 @@ function moveSection(button, direction) {
 
 function continueSubmitAfterPaint(form, submitter) {
   window.setTimeout(() => {
+    form.dataset.allowImmediateSubmit = "true";
     if (submitter && typeof form.requestSubmit === "function") {
       form.requestSubmit(submitter);
       return;
@@ -177,6 +178,11 @@ function continueSubmitAfterPaint(form, submitter) {
 document.addEventListener("submit", (event) => {
   const form = event.target;
   if (form.id !== "talk-editor-form") return;
+
+  if (form.dataset.allowImmediateSubmit === "true") {
+    delete form.dataset.allowImmediateSubmit;
+    return;
+  }
 
   const submitter = event.submitter;
   const action =
