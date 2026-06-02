@@ -85,6 +85,7 @@ class Talk(TimestampMixin, db.Model):
     words_per_minute = db.Column(db.Integer, default=130, nullable=False)
     base_prompt = db.Column(db.Text)
     global_revision_prompt = db.Column(db.Text)
+    last_applied_global_revision_prompt = db.Column(db.Text)
     owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     owner = db.relationship("User", back_populates="talks")
@@ -115,6 +116,16 @@ class Talk(TimestampMixin, db.Model):
             return 0
         return round(self.actual_total_word_count / self.words_per_minute, 2)
 
+    @property
+    def global_prompt_status(self) -> str:
+        current = (self.global_revision_prompt or "").strip()
+        applied = (self.last_applied_global_revision_prompt or "").strip()
+        if not current:
+            return "empty"
+        if current == applied:
+            return "applied"
+        return "pending"
+
 
 class TalkSection(TimestampMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -122,6 +133,7 @@ class TalkSection(TimestampMixin, db.Model):
     label = db.Column(db.String(120), nullable=False)
     text = db.Column(db.Text, default="", nullable=False)
     revision_prompt = db.Column(db.Text)
+    last_applied_revision_prompt = db.Column(db.Text)
     is_frozen = db.Column(db.Boolean, default=False, nullable=False)
     target_time_minutes = db.Column(db.Float, default=1.0, nullable=False)
     sort_order = db.Column(db.Integer, default=0, nullable=False)
@@ -143,6 +155,16 @@ class TalkSection(TimestampMixin, db.Model):
         if not self.talk or not self.talk.words_per_minute:
             return 0
         return round(self.actual_word_count / self.talk.words_per_minute, 2)
+
+    @property
+    def prompt_status(self) -> str:
+        current = (self.revision_prompt or "").strip()
+        applied = (self.last_applied_revision_prompt or "").strip()
+        if not current:
+            return "empty"
+        if current == applied:
+            return "applied"
+        return "pending"
 
 
 class ReferenceFile(TimestampMixin, db.Model):

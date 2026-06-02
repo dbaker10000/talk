@@ -74,17 +74,45 @@ function syncPromptChangedState() {
   document.querySelectorAll("[data-section-prompt]").forEach((area) => {
     const card = area.closest("[data-section-card]");
     const original = card.querySelector("[data-original-prompt]");
+    const lastApplied = card.querySelector("[data-last-applied-prompt]");
+    const status = card.querySelector("[data-section-prompt-status]");
+    const value = (area.value || "").trim();
     const changed = (area.value || "").trim() !== (original.value || "").trim();
     card.classList.toggle("section-card-changed", changed);
+    if (status) {
+      const applied = (lastApplied?.value || "").trim();
+      const state = !value ? "empty" : value === applied ? "applied" : "pending";
+      status.textContent =
+        state === "pending"
+          ? "Pending changes for next AI update"
+          : state === "applied"
+            ? "Last used in AI update"
+            : "No section prompt yet";
+      status.className = `prompt-status prompt-status-${state}`;
+    }
   });
 
   const globalPrompt = document.getElementById("global-revision-prompt");
   const originalGlobalPrompt = document.getElementById("original-global-revision-prompt");
+  const lastAppliedGlobalPrompt = document.getElementById("last-applied-global-revision-prompt");
   const panel = document.querySelector(".global-prompt-panel");
+  const status = document.querySelector("[data-global-prompt-status]");
   if (globalPrompt && originalGlobalPrompt && panel) {
     const changed =
       (globalPrompt.value || "").trim() !== (originalGlobalPrompt.value || "").trim();
     panel.classList.toggle("prompt-panel-changed", changed);
+    if (status) {
+      const value = (globalPrompt.value || "").trim();
+      const applied = (lastAppliedGlobalPrompt?.value || "").trim();
+      const state = !value ? "empty" : value === applied ? "applied" : "pending";
+      status.textContent =
+        state === "pending"
+          ? "Pending changes for next AI update"
+          : state === "applied"
+            ? "Last used in AI update"
+            : "No talk-level revision prompt yet";
+      status.className = `prompt-status prompt-status-${state}`;
+    }
   }
 }
 

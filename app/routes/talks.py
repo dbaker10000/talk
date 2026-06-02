@@ -45,6 +45,7 @@ def create():
             words_per_minute=words_per_minute,
             base_prompt=base_prompt,
             global_revision_prompt="",
+            last_applied_global_revision_prompt="",
             owner=current_user,
         )
         db.session.add(talk)
@@ -215,6 +216,7 @@ def duplicate(talk_id):
         words_per_minute=talk.words_per_minute,
         base_prompt=talk.base_prompt,
         global_revision_prompt=talk.global_revision_prompt,
+        last_applied_global_revision_prompt=talk.last_applied_global_revision_prompt,
         owner=current_user,
     )
     db.session.add(duplicate_talk)
@@ -227,6 +229,7 @@ def duplicate(talk_id):
                 label=section.label,
                 text=section.text,
                 revision_prompt=section.revision_prompt,
+                last_applied_revision_prompt=section.last_applied_revision_prompt,
                 is_frozen=section.is_frozen,
                 target_time_minutes=section.target_time_minutes,
                 sort_order=section.sort_order,
@@ -341,6 +344,12 @@ def _normalize_existing_section_times(talk: Talk) -> bool:
     return changed
 
 
+def _mark_prompts_applied(talk: Talk) -> None:
+    talk.last_applied_global_revision_prompt = talk.global_revision_prompt
+    for section in talk.sections:
+        section.last_applied_revision_prompt = section.revision_prompt
+
+
 def _generate_sections(talk: Talk):
     try:
         structured = openai_service.generate_full_talk(talk)
@@ -361,6 +370,7 @@ def _generate_sections(talk: Talk):
                 sort_order=index,
             )
         )
+    _mark_prompts_applied(talk)
     db.session.commit()
     flash("Sections generated with AI.", "success")
     if structured.notes:
@@ -420,6 +430,7 @@ def _revise_talk(talk: Talk):
         section.text = item.text
         section.target_time_minutes = _normalized_target_time(item.target_time_minutes)
 
+    _mark_prompts_applied(talk)
     db.session.commit()
     flash("Talk updated with AI.", "success")
     if structured.notes:
@@ -448,6 +459,8 @@ def _revise_section(talk: Talk, section_id: int):
             )
             break
 
+    talk.last_applied_global_revision_prompt = talk.global_revision_prompt
+    section.last_applied_revision_prompt = section.revision_prompt
     db.session.commit()
     flash(f"Section '{section.label}' updated with AI.", "success")
     if structured.notes:

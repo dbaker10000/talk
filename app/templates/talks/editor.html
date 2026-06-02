@@ -18,6 +18,7 @@
 <form method="post" id="talk-editor-form">
   <input type="hidden" name="force_rerun" value="0" id="force-rerun-input">
   <input type="hidden" name="original_global_revision_prompt" value="{{ talk.global_revision_prompt or '' }}" id="original-global-revision-prompt">
+  <input type="hidden" id="last-applied-global-revision-prompt" value="{{ talk.last_applied_global_revision_prompt or '' }}">
 
   <section class="toolbar">
     <div class="action-row">
@@ -33,6 +34,9 @@
   <section class="panel global-prompt-panel">
     <label class="stack-field">
       <span>Talk-level revision prompt</span>
+      <span class="prompt-status prompt-status-{{ talk.global_prompt_status }}" data-global-prompt-status>
+        {% if talk.global_prompt_status == "pending" %}Pending changes for next AI update{% elif talk.global_prompt_status == "applied" %}Last used in AI update{% else %}No talk-level revision prompt yet{% endif %}
+      </span>
       <textarea
         name="global_revision_prompt"
         rows="4"
@@ -51,6 +55,7 @@
       <article class="panel section-card" data-section-card>
         <input type="hidden" name="section-{{ section.id }}-sort-order" value="{{ section.sort_order }}" data-sort-order-input>
         <input type="hidden" name="section-{{ section.id }}-original-prompt" value="{{ section.revision_prompt or '' }}" data-original-prompt>
+        <input type="hidden" value="{{ section.last_applied_revision_prompt or '' }}" data-last-applied-prompt>
         <header class="section-card-header">
           <div class="section-title-row">
             <div class="section-order-chip" data-section-position></div>
@@ -92,6 +97,9 @@
 
         <label class="stack-field">
           <span>Section prompt / refinement instruction</span>
+          <span class="prompt-status prompt-status-{{ section.prompt_status }}" data-section-prompt-status>
+            {% if section.prompt_status == "pending" %}Pending changes for next AI update{% elif section.prompt_status == "applied" %}Last used in AI update{% else %}No section prompt yet{% endif %}
+          </span>
           <textarea name="section-{{ section.id }}-prompt" rows="3" data-section-prompt>{{ section.revision_prompt or "" }}</textarea>
         </label>
 
