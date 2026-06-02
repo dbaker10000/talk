@@ -178,6 +178,42 @@ def editor(talk_id):
     return render_template("talks/editor.html", talk=talk)
 
 
+@talks_bp.route("/<int:talk_id>/generate", methods=["POST"])
+@login_required
+def generate(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+    _apply_section_form_data(talk, request.form)
+    talk.global_revision_prompt = request.form.get(
+        "global_revision_prompt", talk.global_revision_prompt or ""
+    ).strip()
+    return _generate_sections(talk)
+
+
+@talks_bp.route("/<int:talk_id>/ai-update", methods=["POST"])
+@login_required
+def ai_update(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+    _apply_section_form_data(talk, request.form)
+    talk.global_revision_prompt = request.form.get(
+        "global_revision_prompt", talk.global_revision_prompt or ""
+    ).strip()
+    return _revise_talk(talk)
+
+
+@talks_bp.route("/<int:talk_id>/sections/<int:section_id>/update", methods=["POST"])
+@login_required
+def update_section(talk_id, section_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+    _apply_section_form_data(talk, request.form)
+    talk.global_revision_prompt = request.form.get(
+        "global_revision_prompt", talk.global_revision_prompt or ""
+    ).strip()
+    return _revise_section(talk, section_id)
+
+
 @talks_bp.route("/<int:talk_id>/view")
 @login_required
 def view(talk_id):

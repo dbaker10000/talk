@@ -25,8 +25,8 @@
       <a class="button button-secondary" href="{{ url_for('talks.settings', talk_id=talk.id) }}">Settings</a>
       <a class="button button-secondary" href="{{ url_for('talks.view', talk_id=talk.id) }}">View</a>
       <button class="button button-secondary" type="submit" name="action" value="add_section">Add section</button>
-      <button class="button button-secondary" type="submit" name="action" value="generate" data-submit-action="generate">Auto-generate sections</button>
-      <button class="button button-secondary" type="submit" name="action" value="ai_update" data-submit-action="ai_update">Update with AI</button>
+      <button class="button button-secondary" type="submit" formaction="{{ url_for('talks.generate', talk_id=talk.id) }}" data-submit-action="generate">Auto-generate sections</button>
+      <button class="button button-secondary" type="submit" formaction="{{ url_for('talks.ai_update', talk_id=talk.id) }}" data-submit-action="ai_update">Update with AI</button>
       <button class="button button-primary" type="submit" name="action" value="save">Save</button>
     </div>
   </section>
@@ -71,7 +71,7 @@
           <div class="section-actions">
             <button class="button button-ghost" type="button" onclick="moveSection(this, -1)">Up</button>
             <button class="button button-ghost" type="button" onclick="moveSection(this, 1)">Down</button>
-            <button class="button button-secondary" type="submit" name="section_action" value="update:{{ section.id }}" data-submit-action="update_section">Update section</button>
+            <button class="button button-secondary" type="submit" formaction="{{ url_for('talks.update_section', talk_id=talk.id, section_id=section.id) }}" data-submit-action="update_section">Update section</button>
             <button class="button button-danger" type="submit" name="section_action" value="delete:{{ section.id }}">Delete</button>
           </div>
         </header>
