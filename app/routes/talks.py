@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
+import shutil
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -199,6 +200,62 @@ def delete(talk_id):
     db.session.commit()
     flash("Talk deleted.", "success")
     return redirect(url_for("talks.dashboard"))
+
+
+@talks_bp.route("/<int:talk_id>/duplicate", methods=["POST"])
+@login_required
+def duplicate(talk_id):
+    talk = Talk.query.get_or_404(talk_id)
+    talk_access_required(talk)
+
+    duplicate_talk = Talk(
+        title=f"{talk.title} (Copy)",
+        theme=talk.theme,
+        duration_minutes=talk.duration_minutes,
+        words_per_minute=talk.words_per_minute,
+        base_prompt=talk.base_prompt,
+        global_revision_prompt=talk.global_revision_prompt,
+        owner=current_user,
+    )
+    db.session.add(duplicate_talk)
+    db.session.flush()
+
+    for section in talk.sections:
+        db.session.add(
+            TalkSection(
+                talk=duplicate_talk,
+                label=section.label,
+                text=section.text,
+                revision_prompt=section.revision_prompt,
+                is_frozen=section.is_frozen,
+                target_time_minutes=section.target_time_minutes,
+                sort_order=section.sort_order,
+            )
+        )
+
+    for ref in talk.reference_files:
+        source_path = Path(ref.file_path)
+        if not source_path.exists():
+            continue
+
+        stored_filename = unique_upload_name(ref.original_filename)
+        destination_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_filename
+        shutil.copy2(source_path, destination_path)
+
+        db.session.add(
+            ReferenceFile(
+                talk=duplicate_talk,
+                original_filename=ref.original_filename,
+                stored_filename=stored_filename,
+                file_path=str(destination_path),
+                mime_type=ref.mime_type,
+                file_size=destination_path.stat().st_size,
+            )
+        )
+
+    db.session.commit()
+    flash("Talk duplicated.", "success")
+    return redirect(url_for("talks.editor", talk_id=duplicate_talk.id))
 
 
 def _apply_section_form_data(talk: Talk, form) -> None:

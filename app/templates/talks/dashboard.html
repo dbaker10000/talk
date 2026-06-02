@@ -30,6 +30,9 @@
           <a class="button button-secondary" href="{{ url_for('talks.editor', talk_id=talk.id) }}">Edit</a>
           <a class="button button-secondary" href="{{ url_for('talks.settings', talk_id=talk.id) }}">Settings</a>
           <a class="button button-secondary" href="{{ url_for('talks.view', talk_id=talk.id) }}">View</a>
+          <form method="post" action="{{ url_for('talks.duplicate', talk_id=talk.id) }}">
+            <button class="button button-secondary" type="submit">Duplicate</button>
+          </form>
           <form method="post" action="{{ url_for('talks.delete', talk_id=talk.id) }}">
             <button class="button button-danger" type="submit">Delete</button>
           </form>
