@@ -116,39 +116,6 @@ function syncPromptChangedState() {
   }
 }
 
-function setLoadingState(action) {
-  const overlay = document.getElementById("loading-overlay");
-  const message = document.getElementById("loading-message");
-  if (!overlay || !message) return;
-
-  const messages = {
-    generate: "Generating the talk structure and section drafts now.",
-    ai_update: "Updating the talk with AI and reloading changed sections.",
-    update_section: "Updating the selected section and reloading the editor.",
-  };
-
-  message.textContent =
-    messages[action] || "Waiting for the AI response and reloading the updated draft.";
-  overlay.style.display = "grid";
-  overlay.setAttribute("aria-hidden", "false");
-  document.body.classList.add("is-loading");
-  document.querySelectorAll("button, input, textarea, select").forEach((element) => {
-    element.disabled = true;
-  });
-}
-
-function clearLoadingState() {
-  const overlay = document.getElementById("loading-overlay");
-  if (overlay) {
-    overlay.style.display = "none";
-    overlay.setAttribute("aria-hidden", "true");
-  }
-  document.body.classList.remove("is-loading");
-  document.querySelectorAll("button, input, textarea, select").forEach((element) => {
-    element.disabled = false;
-  });
-}
-
 function moveSection(button, direction) {
   const card = button.closest("[data-section-card]");
   const container = card.parentElement;
@@ -188,9 +155,6 @@ document.addEventListener("submit", (event) => {
     if (forceRerunInput) forceRerunInput.value = "1";
   }
 
-  if (["generate", "ai_update", "update_section"].includes(action)) {
-    setLoadingState(action);
-  }
 });
 
 document.addEventListener("input", (event) => {
@@ -205,7 +169,6 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  clearLoadingState();
   renumberSortOrder();
   updateEditorMetrics();
   syncPromptChangedState();
