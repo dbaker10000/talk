@@ -164,25 +164,9 @@ function moveSection(button, direction) {
   }, 700);
 }
 
-function continueSubmitAfterPaint(form, submitter) {
-  window.setTimeout(() => {
-    form.dataset.allowImmediateSubmit = "true";
-    if (submitter && typeof form.requestSubmit === "function") {
-      form.requestSubmit(submitter);
-      return;
-    }
-    form.submit();
-  }, 20);
-}
-
 document.addEventListener("submit", (event) => {
   const form = event.target;
   if (form.id !== "talk-editor-form") return;
-
-  if (form.dataset.allowImmediateSubmit === "true") {
-    delete form.dataset.allowImmediateSubmit;
-    return;
-  }
 
   const submitter = event.submitter;
   const action =
@@ -205,9 +189,7 @@ document.addEventListener("submit", (event) => {
   }
 
   if (["generate", "ai_update", "update_section"].includes(action)) {
-    event.preventDefault();
     setLoadingState(action);
-    continueSubmitAfterPaint(form, submitter);
   }
 });
 
